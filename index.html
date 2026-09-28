@@ -22,16 +22,21 @@ body{font-family:system-ui,Arial,sans-serif;background:#10151f;color:#fff}
 #dot{position:fixed;right:1.5vh;bottom:1.5vh;width:2vh;height:2vh;border-radius:50%;background:#e5484d}
 #dot.ok{background:#30a46c}
 /* ---------- TELEFONO ---------- */
-#remote{display:none;min-height:100vh;padding:16px;flex-direction:column;gap:14px;max-width:520px;margin:auto}
+#remote{display:none;min-height:100vh;min-height:100dvh;padding:16px;flex-direction:column;gap:14px;max-width:520px;margin:auto}
 .cur{text-align:center;background:#1b2436;border-radius:16px;padding:14px}
 .cur small{color:#9fb0c8;font-size:16px}
 .cur b{display:block;font-size:88px;line-height:1.1;color:#ffd23f}
 button{font:inherit;font-weight:800;border:0;border-radius:16px;color:#111;background:#e6ebf5;padding:18px;font-size:20px}
 button:active{transform:scale(.97)}
-#next{background:#ffd23f;font-size:34px;padding:34px 18px}
-.row{display:flex;gap:10px}.row>*{flex:1}
-input{font:inherit;font-size:24px;font-weight:700;padding:14px;border-radius:14px;border:2px solid #34405c;background:#0b0f17;color:#fff;width:100%;min-width:0}
-#reset{background:#3a2226;color:#ff9aa0;font-size:16px;padding:12px}
+.disp{background:#0b0f17;border:2px solid #34405c;border-radius:16px;text-align:center;font-size:56px;font-weight:900;padding:8px;min-height:84px;color:#fff;font-variant-numeric:tabular-nums}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pad button{font-size:34px;padding:16px 0}
+.pad .f{background:#34405c;color:#fff;font-size:26px}
+#undo{background:#e5484d;color:#fff}
+#call{background:#ffd23f;font-size:40px;padding:30px 18px;position:sticky;bottom:12px}
+.info{margin-top:auto}
+#reset{background:none;color:#7d8aa3;font-size:14px;padding:8px}
+.row>*{flex:1}
 .info{color:#9fb0c8;font-size:14px;line-height:1.5;word-break:break-all}
 .info a{color:#ffd23f}
 </style>
@@ -46,11 +51,17 @@ input{font:inherit;font-size:24px;font-weight:700;padding:14px;border-radius:14p
 
 <div id="remote">
   <div class="cur"><small>Ultimo chiamato</small><b id="rcur">–</b></div>
-  <button id="next">Chiama prossimo</button>
+  <div class="disp" id="disp">—</div>
+  <div class="pad" id="pad">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button class="f" data-k="clr">C</button><button data-k="0">0</button><button class="f" data-k="del">⌫</button>
+  </div>
   <div class="row"><button id="again">Richiama</button><button id="undo">Annulla ultimo</button></div>
-  <div class="row"><input id="num" type="number" inputmode="numeric" placeholder="Numero"><button id="go">Chiama</button></div>
   <button id="reset">Azzera tutto</button>
   <p class="info">Sul televisore apri:<br><a id="tvlink" target="_blank"></a></p>
+  <button id="call">Chiama</button>
 </div>
 
 <script>
@@ -115,11 +126,20 @@ function avviaTelefono() {
   $("tvlink").textContent = link; $("tvlink").href = link;
   try { state = JSON.parse(localStorage.getItem("stato")) || state; } catch (e) {}
   render(false);
-  $("next").onclick = () => chiama(state.h.length ? state.n + 1 : 1);
+  let dig = "";
+  const agg = () => $("disp").textContent = dig || "—";
+  $("pad").onclick = e => {
+    const k = e.target.dataset.k; if (k === undefined) return;
+    if (k === "del") dig = dig.slice(0, -1); else if (k === "clr") dig = ""; else if (dig.length < 4) dig += k;
+    agg();
+  };
+  $("call").onclick = () => { if (dig) { chiama(dig); dig = ""; agg(); } };
   $("again").onclick = () => state.h.length && invia({...state});
-  $("undo").onclick = () => { const h = state.h.slice(1); invia({n: h[0] || 0, h, t: 0}); };
-  $("go").onclick = () => { chiama($("num").value); $("num").value = ""; };
-  $("reset").onclick = () => confirm("Azzerare i numeri?") && invia({n: 0, h: [], t: 0});
+  $("undo").onclick = () => {
+    if (!state.h.length) return;
+    if (confirm("Annullare l'ultimo numero chiamato (" + state.n + ")?")) { const h = state.h.slice(1); invia({n: h[0] || 0, h, t: 0}); }
+  };
+  $("reset").onclick = () => confirm("Azzerare tutti i numeri?") && invia({n: 0, h: [], t: 0});
 }
 
 isTV ? avviaTV() : avviaTelefono();
