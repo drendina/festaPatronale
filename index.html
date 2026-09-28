@@ -21,6 +21,15 @@ body{font-family:system-ui,Arial,sans-serif;background:#10151f;color:#fff}
 .hist li:first-child{color:#ffd23f}
 #dot{position:fixed;right:1.5vh;bottom:1.5vh;width:2vh;height:2vh;border-radius:50%;background:#e5484d}
 #dot.ok{background:#30a46c}
+@media (orientation:portrait){
+#tv{grid-template-columns:1fr;grid-template-rows:38vh 1fr}
+.now small{font-size:3.6vh}
+.now b{font-size:min(24vh,36vw)}
+.hist{padding:2vh 6vw}
+.hist h2{font-size:3.6vh;margin-bottom:1vh}
+.hist li{font-size:4.6vh;height:5.6vh}
+#dot{width:1.4vh;height:1.4vh}
+}
 /* ---------- TELEFONO ---------- */
 #remote{display:none;min-height:100vh;min-height:100dvh;padding:16px;flex-direction:column;gap:14px;max-width:520px;margin:auto}
 .cur{text-align:center;background:#1b2436;border-radius:16px;padding:14px}
@@ -32,11 +41,12 @@ button:active{transform:scale(.97)}
 .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .pad button{font-size:34px;padding:16px 0}
 .pad .f{background:#34405c;color:#fff;font-size:26px}
-#undo{background:#e5484d;color:#fff}
+.row{display:flex;gap:10px}
+#again{flex:1 1 auto}
+#undo{background:#e5484d;color:#fff;flex:0 0 auto;margin-left:auto;padding-left:22px;padding-right:22px}
 #call{background:#ffd23f;font-size:40px;padding:30px 18px;position:sticky;bottom:12px}
 .info{margin-top:auto}
 #reset{background:none;color:#7d8aa3;font-size:14px;padding:8px}
-.row>*{flex:1}
 .info{color:#9fb0c8;font-size:14px;line-height:1.5;word-break:break-all}
 .info a{color:#ffd23f}
 </style>
@@ -60,7 +70,7 @@ button:active{transform:scale(.97)}
   </div>
   <div class="row"><button id="again">Richiama</button><button id="undo">Annulla ultimo</button></div>
   <button id="reset">Azzera tutto</button>
-  <p class="info">Sul televisore apri:<br><a id="tvlink" target="_blank"></a></p>
+  <p class="info">TV: <a id="tvlink" target="_blank"></a><br>Cellulari: <a id="mblink" target="_blank"></a></p>
   <button id="call">Chiama</button>
 </div>
 
@@ -70,7 +80,9 @@ const CANALE = "ordini-k7x2m9qz";
 const URL_CANALE = "https://ntfy.sh/" + CANALE;
 
 const $ = id => document.getElementById(id);
-const isTV = location.hash === "#tv";
+const isTV = location.hash === "#tv" || location.hash === "#mobile";
+const isMobile = location.hash === "#mobile";
+window.onhashchange = () => location.reload();
 let state = {n: 0, h: [], t: 0};
 
 /* ---------- Comune ---------- */
@@ -93,7 +105,7 @@ function render(nuovo) {
     $("big").textContent = state.h.length ? state.n : "–";
     $("list").innerHTML = state.h.map(x => "<li>" + x + "</li>").join("");
     if (nuovo && state.h.length) {
-      const el = $("now"); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); beep();
+      const el = $("now"); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); if (isMobile) { navigator.vibrate && navigator.vibrate([200, 100, 200]); } else beep();
     }
   } else {
     $("rcur").textContent = state.h.length ? state.n : "–";
@@ -124,6 +136,8 @@ function avviaTelefono() {
   $("remote").style.display = "flex";
   const link = location.href.split("#")[0] + "#tv";
   $("tvlink").textContent = link; $("tvlink").href = link;
+  const ml = location.href.split("#")[0] + "#mobile";
+  $("mblink").textContent = ml; $("mblink").href = ml;
   try { state = JSON.parse(localStorage.getItem("stato")) || state; } catch (e) {}
   render(false);
   let dig = "";
