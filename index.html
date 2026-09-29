@@ -30,6 +30,11 @@ body{font-family:system-ui,Arial,sans-serif;background:#10151f;color:#fff}
 .hist li{font-size:4.6vh;height:5.6vh}
 #dot{width:1.4vh;height:1.4vh}
 }
+#login{display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px}
+#login h1{font-size:28px}
+#login input{font:inherit;font-size:24px;padding:14px;border-radius:14px;border:2px solid #34405c;background:#0b0f17;color:#fff;width:100%;max-width:360px}
+#login button{background:#ffd23f;width:100%;max-width:360px;font-size:24px}
+#msg{color:#ff9aa0;font-size:18px;text-align:center;max-width:360px;word-break:break-all;user-select:all}
 /* ---------- TELEFONO ---------- */
 #remote{display:none;min-height:100vh;min-height:100dvh;padding:16px;flex-direction:column;gap:14px;max-width:520px;margin:auto}
 .cur{text-align:center;background:#1b2436;border-radius:16px;padding:14px}
@@ -46,12 +51,14 @@ button:active{transform:scale(.97)}
 #undo{background:#e5484d;color:#fff;flex:0 0 auto;margin-left:auto;padding-left:22px;padding-right:22px}
 #call{background:#ffd23f;font-size:40px;padding:30px 18px;position:sticky;bottom:12px}
 .info{margin-top:auto}
-#reset{background:none;color:#7d8aa3;font-size:14px;padding:8px}
+#reset,#exit{background:none;color:#7d8aa3;font-size:14px;padding:8px}
 .info{color:#9fb0c8;font-size:14px;line-height:1.5;word-break:break-all}
 .info a{color:#ffd23f}
 </style>
 </head>
 <body>
+
+<div id="login"><h1>Chiamata numeri</h1><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button id="pwgo">Apri</button><p id="msg"></p></div>
 
 <div id="tv">
   <div class="now" id="now"><small>Numero chiamato</small><b id="big">–</b></div>
@@ -69,19 +76,20 @@ button:active{transform:scale(.97)}
     <button class="f" data-k="clr">C</button><button data-k="0">0</button><button class="f" data-k="del">⌫</button>
   </div>
   <div class="row"><button id="again">Richiama</button><button id="undo">Annulla ultimo</button></div>
-  <button id="reset">Azzera tutto</button>
+  <div class="row"><button id="reset">Azzera tutto</button><button id="exit">Esci</button></div>
   <p class="info">TV: <a id="tvlink" target="_blank"></a><br>Cellulari: <a id="mblink" target="_blank"></a></p>
   <button id="call">Chiama</button>
 </div>
 
 <script>
-// Cambia questa parola con una tua (solo lettere/numeri): serve a collegare telefono e TV
-const CANALE = "ordini-k7x2m9qz";
-const URL_CANALE = "https://ntfy.sh/" + CANALE;
-
+// Il canale non è scritto nel codice: si ricava dalla password
+// Impronta (hash) della password: NON è la password. Per generarla apri la pagina con  #setup
+const HASH = "";
+let URL_CANALE, TOPIC;
 const $ = id => document.getElementById(id);
-const isTV = location.hash === "#tv" || location.hash === "#mobile";
-const isMobile = location.hash === "#mobile";
+const [modo, tok] = location.hash.slice(1).split("=");
+const isTV = modo === "tv" || modo === "mobile";
+const isMobile = modo === "mobile";
 window.onhashchange = () => location.reload();
 let state = {n: 0, h: [], t: 0};
 
@@ -134,12 +142,18 @@ function chiama(x) {
 }
 function avviaTelefono() {
   $("remote").style.display = "flex";
-  const link = location.href.split("#")[0] + "#tv";
+  const base = location.href.split("#")[0];
+  const link = base + "#tv=" + TOPIC;
   $("tvlink").textContent = link; $("tvlink").href = link;
-  const ml = location.href.split("#")[0] + "#mobile";
+  const ml = base + "#mobile=" + TOPIC;
   $("mblink").textContent = ml; $("mblink").href = ml;
   try { state = JSON.parse(localStorage.getItem("stato")) || state; } catch (e) {}
   render(false);
+  fetch(URL_CANALE + "/json?poll=1&since=latest").then(r => r.text()).then(t => {
+    const l = t.trim().split("\n").filter(Boolean).pop();
+    if (l) { const x = JSON.parse(JSON.parse(l).message); if (x.t > state.t) { state = x; render(false); } }
+  }).catch(() => {});
+  $("exit").onclick = () => { localStorage.removeItem("pw"); localStorage.removeItem("stato"); location.reload(); };
   let dig = "";
   const agg = () => $("disp").textContent = dig || "—";
   $("pad").onclick = e => {
@@ -156,7 +170,39 @@ function avviaTelefono() {
   $("reset").onclick = () => confirm("Azzerare tutti i numeri?") && invia({n: 0, h: [], t: 0});
 }
 
-isTV ? avviaTV() : avviaTelefono();
+async function sha(t) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+const topicDa = async pw => "f" + (await sha("festa-view:" + pw)).slice(0, 32);
+function collega(topic) { TOPIC = topic; URL_CANALE = "https://ntfy.sh/" + topic; isTV ? avviaTV() : avviaTelefono(); }
+const controllo = async pw => (await sha("festa-check:" + pw)) === HASH;
+async function avvia() {
+  if (!(window.crypto && crypto.subtle)) { document.body.textContent = "Apri la pagina con https://"; return; }
+  if (modo === "setup") {
+    $("login").style.display = "flex";
+    $("pwgo").textContent = "Genera impronta";
+    $("pwgo").onclick = async () => {
+      const p = $("pw").value; if (!p) return;
+      $("msg").style.color = "#ffd23f";
+      $("msg").textContent = 'const HASH = "' + (await sha("festa-check:" + p)) + '";';
+    };
+    return;
+  }
+  if (!HASH) { document.body.textContent = "Password non ancora impostata: apri la pagina con #setup"; return; }
+  if (isTV && tok) return collega(tok);
+  const salvata = localStorage.getItem("pw");
+  if (salvata && await controllo(salvata)) return collega(await topicDa(salvata));
+  localStorage.removeItem("pw");
+  $("login").style.display = "flex";
+  const vai = async () => {
+    const p = $("pw").value; if (!p) return;
+    if (!(await controllo(p))) { $("msg").textContent = "Password errata"; $("pw").value = ""; return; }
+    localStorage.setItem("pw", p); $("login").style.display = "none"; collega(await topicDa(p));
+  };
+  $("pwgo").onclick = vai; $("pw").onkeydown = e => e.key === "Enter" && vai();
+}
+avvia();
 </script>
 </body>
 </html>
